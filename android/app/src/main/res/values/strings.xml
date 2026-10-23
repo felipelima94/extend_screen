@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ExtendedScreen</string>
+    <string name="status_waiting">Aguardando o PC…\n\n1. Conecte o tablet ao PC pelo cabo USB\n2. Ative a Depuração USB (Opções do desenvolvedor)\n3. Abra o ExtendedScreen no PC</string>
+    <string name="status_connected">Conectado. Aguardando vídeo…</string>
+</resources>

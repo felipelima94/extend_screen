@@ -1,0 +1,18 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+
+# Ferramentas baixadas
+tools/
+
+# Saídas de teste
+*.h264
