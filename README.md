@@ -1,6 +1,6 @@
 # ExtendedScreen
 
-Use um tablet Android como **monitor estendido** do Windows, ligado pelo **cabo USB**.
+Use um tablet Android como **monitor estendido** do Windows ou do Linux (GNOME/Wayland), ligado pelo **cabo USB**.
 
 ```
 Windows: monitor virtual (Virtual Display Driver)
@@ -50,7 +50,7 @@ Configurações: `%APPDATA%\ExtendedScreen\settings.json`. Log: `%APPDATA%\Exten
 
 ## Compilar
 
-PC (requer .NET 10 SDK):
+PC (requer .NET 10 SDK; a solution inteira compila também no Linux):
 
 ```bash
 dotnet build pc/ExtendedScreen.sln -c Release
@@ -69,6 +69,45 @@ Android (requer JDK 17 e Android SDK 35; ajuste `android/local.properties` com `
 ```bash
 cd android && gradlew.bat assembleDebug
 ```
+
+## Linux (GNOME/Wayland)
+
+```
+GNOME (Mutter): monitor virtual criado sob demanda (ScreenCast.RecordVirtual), sem driver
+  → PipeWire → GStreamer → H.264 (VA-API na GPU, x264 ou OpenH264)
+  → TCP localhost:27183 ══ adb reverse (USB) ══► app Android (o mesmo)
+  ◄══ toque (mouse via RemoteDesktop do Mutter) e caneta (mesa digitalizadora virtual via uinput, com pressão) ══
+```
+
+Requisitos: sessão **GNOME no Wayland** (testado no Fedora 44 / GNOME 50), .NET 10 SDK, adb, GStreamer com `pipewiresrc`.
+
+### Instalação (Fedora)
+
+```bash
+scripts/linux/setup.sh          # dotnet, adb, plugins do GStreamer e regra udev da caneta
+scripts/linux/setup.sh --gpu    # idem + Mesa do RPM Fusion, para encode H.264 na GPU (AMD/Intel)
+```
+
+A regra udev (`scripts/linux/70-extendedscreen-uinput.rules`) dá ao usuário logado acesso a `/dev/uinput`, que cria a caneta com pressão e inclinação. Sem ela, a caneta funciona como mouse.
+
+### Uso
+
+```bash
+dotnet run --project pc/ExtendedScreen.Linux -c Release -- --check   # verifica tudo
+dotnet run --project pc/ExtendedScreen.Linux -c Release              # servidor (Ctrl+C sai)
+```
+
+Quando o app do tablet conecta, aparece um monitor novo ("Virtual remote monitor") com a resolução do tablet. Posicione-o em *Configurações › Telas*. Ele some quando o tablet desconecta ou o programa fecha. O GNOME mostra o ícone de compartilhamento de tela enquanto ele existe.
+
+| Opção | Efeito |
+|---|---|
+| `--fps 30` / `--bitrate 15` | FPS e Mbps desta execução (padrões em `~/.config/ExtendedScreen/settings.json`) |
+| `--mirror DP-1` | espelha um monitor existente em vez de criar um virtual (`--list-displays` lista os conectores) |
+| `--no-cursor` | não desenha o cursor no vídeo |
+| `--software` | ignora o encoder da GPU |
+| `--record t.h264 --seconds 5 --width 1920 --height 1080` | grava um monitor virtual em arquivo, sem tablet (abre no `ffplay`) |
+
+Log: `~/.config/ExtendedScreen/log.txt`. A caneta virtual (dispositivo `1209:e5c1`) cobre o desktop inteiro. O programa posiciona cada ponto dentro do monitor do tablet a partir do layout atual, porque o GNOME não aceita mapear uma mesa para um monitor virtual. Por isso ele zera o mapeamento dessa mesa em `org.gnome.desktop.peripherals.tablet`.
 
 ## Diagnóstico
 
@@ -94,7 +133,9 @@ Use `--software` para forçar o encoder de software da Microsoft.
 ## Estrutura
 
 - `pc/ExtendedScreen.Core`: protocolo, utilitários H.264, mapeamento de coordenadas (sem dependências, testado em `ExtendedScreen.Tests`)
-- `pc/ExtendedScreen.Host`: app de bandeja (adb, captura, encoder, servidor, injeção de entrada)
+- `pc/ExtendedScreen.Server`: servidor TCP, sessão com o tablet, adb e configurações, comuns a Windows e Linux (`IScreenBackend` separa o que é de cada SO)
+- `pc/ExtendedScreen.Host`: app de bandeja do Windows (captura DXGI, encoder Media Foundation, injeção de entrada)
+- `pc/ExtendedScreen.Linux`: host do Linux (Mutter via D-Bus, GStreamer, uinput)
 - `android/`: app Kotlin (conexão, decodificador, captura de toque e caneta)
 - `docs/protocol.md`: especificação do protocolo
 
@@ -104,3 +145,4 @@ Use `--software` para forçar o encoder de software da Microsoft.
 - O app Android abre em paisagem (`sensorLandscape`).
 - O clique direito com o dedo (toque longo ou com dois dedos) ainda não foi implementado. Use o botão lateral da caneta.
 - Áudio não é transmitido.
+- No Linux, só o GNOME (Mutter) está suportado. KDE/wlroots usam outras APIs de monitor virtual.

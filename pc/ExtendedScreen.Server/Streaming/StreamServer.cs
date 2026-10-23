@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
+using ExtendedScreen.Server.Platform;
 
-namespace ExtendedScreen.Host.Streaming;
+namespace ExtendedScreen.Server.Streaming;
 
 /// <summary>Listens on localhost (reached from the tablet through adb reverse). One tablet at a time.</summary>
-public sealed class StreamServer(int port, Func<AppSettings> settings, Action<string> status) : IDisposable
+public sealed class StreamServer(int port, IScreenBackend backend, Func<AppSettings> settings, Action<string> status) : IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
     private TcpListener? _listener;
@@ -40,7 +41,7 @@ public sealed class StreamServer(int port, Func<AppSettings> settings, Action<st
 
             // A new connection replaces the old one (e.g. the app was reopened).
             await StopCurrentAsync();
-            var session = new StreamSession(client, settings(), status);
+            var session = new StreamSession(client, backend, settings(), status);
             _current = session;
             _currentTask = Task.Run(async () =>
             {

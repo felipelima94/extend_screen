@@ -1,0 +1,2 @@
+# Lets the logged-in desktop user create the ExtendedScreen virtual pen (pressure/tilt) through /dev/uinput.
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"

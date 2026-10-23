@@ -1,4 +1,4 @@
-namespace ExtendedScreen.Host;
+namespace ExtendedScreen.Server;
 
 public static class Log
 {

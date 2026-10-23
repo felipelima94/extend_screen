@@ -1,18 +1,15 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 using ExtendedScreen.Core.Protocol;
-using ExtendedScreen.Host.Display;
-using ExtendedScreen.Host.Encoding;
-using ExtendedScreen.Host.Input;
+using ExtendedScreen.Server.Platform;
 
-namespace ExtendedScreen.Host.Streaming;
+namespace ExtendedScreen.Server.Streaming;
 
 /// <summary>One connected tablet: handshake, video out, input and ping in.</summary>
-public sealed class StreamSession(TcpClient client, AppSettings settings, Action<string> status) : IVideoSink
+public sealed class StreamSession(TcpClient client, IScreenBackend backend, AppSettings settings, Action<string> status) : IVideoSink
 {
     private readonly CancellationTokenSource _cts = new();
     private FrameWriter _writer = null!;
-    private VideoPipeline? _pipeline;
     private readonly byte[] _frameHeader = new byte[VideoFrameMessage.HeaderSize];
 
     public HelloMessage? Hello { get; private set; }
@@ -36,28 +33,10 @@ public sealed class StreamSession(TcpClient client, AppSettings settings, Action
         Hello = hello;
         Log.Write($"Tablet conectado: {hello.DeviceName} {hello.Width}x{hello.Height} @{hello.DensityDpi}dpi");
 
-        var display = DisplayFinder.FindTarget(settings.DisplayDeviceName)
-            ?? throw new InvalidOperationException(
-                "Nenhum monitor virtual encontrado. Instale o Virtual Display Driver ou escolha um monitor no menu da bandeja.");
-
-        if (settings.MatchTabletResolution && display.IsVirtual)
-        {
-            if (DisplayFinder.TrySetResolution(display.DeviceName, hello.Width, hello.Height))
-                Log.Write($"{display.DeviceName} ajustado para {hello.Width}x{hello.Height}");
-            else if (DisplayFinder.PickClosestMode(display.DeviceName, hello.Width, hello.Height) is { } mode
-                     && DisplayFinder.TrySetResolution(display.DeviceName, mode.Width, mode.Height))
-                Log.Write($"O driver não oferece {hello.Width}x{hello.Height}; usando {mode.Width}x{mode.Height}. " +
-                          "Para a resolução exata, adicione-a em vdd_settings.xml do Virtual Display Driver.");
-            else
-                Log.Write($"O driver não oferece {hello.Width}x{hello.Height}. Adicione essa resolução em vdd_settings.xml do Virtual Display Driver.");
-        }
-
-        using var input = new InputInjector(display.DeviceName, Log.Write);
-        _pipeline = new VideoPipeline(display.DeviceName, settings.Fps, settings.BitrateMbps * 1_000_000,
-            settings.DrawCursor, settings.AllowHardwareEncoder, Log.Write);
+        using var target = backend.Open(hello, settings, Log.Write);
         var videoThread = new Thread(() =>
         {
-            try { _pipeline.Run(this, ct); }
+            try { target.RunVideo(this, ct); }
             catch (Exception ex) { Log.Write($"Vídeo encerrado: {ex.Message}"); }
             finally { _cts.Cancel(); }
         }) { IsBackground = true, Name = "Video", Priority = ThreadPriority.AboveNormal };
@@ -74,10 +53,10 @@ public sealed class StreamSession(TcpClient client, AppSettings settings, Action
                 switch (frame.Value.Type)
                 {
                     case MessageType.Pointer:
-                        input.Enqueue(PointerMessage.Parse(frame.Value.Payload));
+                        target.Enqueue(PointerMessage.Parse(frame.Value.Payload));
                         break;
                     case MessageType.RequestKeyframe:
-                        _pipeline.RequestKeyframe();
+                        target.RequestKeyframe();
                         break;
                     case MessageType.Pong:
                         var rtt = Stopwatch.GetElapsedTime(PingMessage.Parse(frame.Value.Payload));

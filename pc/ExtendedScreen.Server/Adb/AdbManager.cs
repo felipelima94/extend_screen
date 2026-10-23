@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace ExtendedScreen.Host.Adb;
+namespace ExtendedScreen.Server.Adb;
 
 /// <summary>
 /// Watches for Android devices over USB and keeps an <c>adb reverse</c> tunnel open on each one,
@@ -27,7 +27,9 @@ public sealed class AdbManager(int port) : IDisposable
         AdbPath = FindAdb();
         if (AdbPath is null)
         {
-            StatusChanged?.Invoke("adb.exe não encontrado. Rode scripts\\get-adb.ps1.");
+            StatusChanged?.Invoke(OperatingSystem.IsWindows()
+                ? "adb.exe não encontrado. Rode scripts\\get-adb.ps1."
+                : "adb não encontrado. Instale com: sudo dnf install android-tools");
             return;
         }
         _loop = Task.Run(() => LoopAsync(_cts.Token));
@@ -117,15 +119,16 @@ public sealed class AdbManager(int port) : IDisposable
         return (p.ExitCode, await stdout + await stderr);
     }
 
-    /// <summary>Looks for tools\platform-tools\adb.exe next to or above the executable, then on PATH.</summary>
-    private static string? FindAdb()
+    /// <summary>Looks for tools/platform-tools/adb next to or above the executable, then in the Android SDK, then on PATH.</summary>
+    public static string? FindAdb()
     {
+        var exe = OperatingSystem.IsWindows() ? "adb.exe" : "adb";
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             foreach (var candidate in new[]
             {
-                Path.Combine(dir.FullName, "platform-tools", "adb.exe"),
-                Path.Combine(dir.FullName, "tools", "platform-tools", "adb.exe"),
+                Path.Combine(dir.FullName, "platform-tools", exe),
+                Path.Combine(dir.FullName, "tools", "platform-tools", exe),
             })
             {
                 if (File.Exists(candidate)) return candidate;
@@ -133,13 +136,15 @@ public sealed class AdbManager(int port) : IDisposable
         }
 
         var sdk = Environment.GetEnvironmentVariable("ANDROID_HOME")
-                  ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Android", "Sdk");
-        var sdkAdb = Path.Combine(sdk, "platform-tools", "adb.exe");
+                  ?? (OperatingSystem.IsWindows()
+                      ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Android", "Sdk")
+                      : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Android", "Sdk"));
+        var sdkAdb = Path.Combine(sdk, "platform-tools", exe);
         if (File.Exists(sdkAdb)) return sdkAdb;
 
         foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
         {
-            var candidate = Path.Combine(dir.Trim(), "adb.exe");
+            var candidate = Path.Combine(dir.Trim(), exe);
             if (File.Exists(candidate)) return candidate;
         }
         return null;
