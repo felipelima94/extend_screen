@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace ExtendedScreen.Host;
+namespace ExtendedScreen.Server;
 
 public sealed class AppSettings
 {

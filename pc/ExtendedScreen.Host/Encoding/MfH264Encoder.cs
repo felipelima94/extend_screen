@@ -6,8 +6,6 @@ namespace ExtendedScreen.Host.Encoding;
 
 public readonly record struct EncoderInput(ID3D11Texture2D Nv12, long Time100ns);
 
-public readonly record struct EncodedFrame(byte[] Data, long PtsUs, bool Keyframe);
-
 /// <summary>
 /// H.264 encoder on Media Foundation. Prefers hardware MFTs (async, fed with GPU textures through the DXGI
 /// device manager) and falls back to system-memory input, then to the Microsoft software encoder.

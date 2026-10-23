@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ExtendedScreen.Core\ExtendedScreen.Core.csproj" />
+    <ProjectReference Include="..\ExtendedScreen.Server\ExtendedScreen.Server.csproj" />
   </ItemGroup>
 
 </Project>

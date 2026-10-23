@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using ExtendedScreen.Core.Protocol;
-using ExtendedScreen.Host.Adb;
 using ExtendedScreen.Host.Display;
-using ExtendedScreen.Host.Streaming;
+using ExtendedScreen.Server.Adb;
+using ExtendedScreen.Server.Streaming;
 
 namespace ExtendedScreen.Host;
 
@@ -38,7 +38,7 @@ public sealed class TrayApp : ApplicationContext
             _usbItem.Text = Truncate(s);
             Log.Write(s);
         });
-        _server = new StreamServer(ProtocolConstants.Port, () => _settings, s => OnUi(() => SetStatus(s)));
+        _server = new StreamServer(ProtocolConstants.Port, new WindowsScreenBackend(), () => _settings, s => OnUi(() => SetStatus(s)));
 
         try
         {
